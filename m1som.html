@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fantasy Tamagotchi - Modern UI</title>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f4f4f6; font-family: 'Sarabun', sans-serif; overflow: hidden; }
+
+        /* --- หน้าจอเลือกสัตว์เลี้ยง --- */
+        #selection-screen { background-color: #ffffff; width: 95%; max-width: 600px; max-height: 90vh; border-radius: 30px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); text-align: center; overflow-y: auto; }
+        .pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 15px; margin-top: 20px; }
+        .pet-card { background-color: #f8f9fa; border: 2px solid #e9ecef; border-radius: 20px; padding: 15px 5px; cursor: pointer; transition: transform 0.2s, border-color 0.2s; touch-action: manipulation; }
+        @media (hover: hover) { .pet-card:hover { transform: scale(1.05); border-color: #4cb0a9; } }
+        .pet-card-emoji { font-size: 35px; margin-bottom: 8px; }
+        .pet-card-name { font-size: 13px; font-weight: bold; color: #2c3e50; }
+
+        /* --- หน้าจอเล่นเกม (Modern UI) --- */
+        #game-boy { display: none; background-color: #ffffff; width: 95%; max-width: 400px; border-radius: 40px; padding: 30px 25px; box-shadow: 0 15px 50px rgba(0,0,0,0.08); text-align: center; position: relative; }
+        
+        #pet-title { font-size: 22px; font-weight: 800; color: #2d3436; margin: 0 0 8px 0; }
+        .info-text { color: #87929d; font-size: 13px; font-weight: bold; margin-bottom: 5px; }
+        #time-text { color: #3498db; margin-bottom: 20px; }
+
+        /* พื้นที่สัตว์เลี้ยง */
+        #screen { background-color: #eaf5f7; border-radius: 25px; padding: 20px 25px 25px 25px; position: relative; display: flex; flex-direction: column; align-items: center; }
+        
+        /* ป้ายสถานะแบบแคปซูล */
+        #status-pill-container { display: flex; justify-content: center; width: 100%; margin-bottom: 15px; position: relative; }
+        #status-text { background-color: #ffffff; color: #4a5568; font-size: 13px; font-weight: bold; padding: 6px 20px; border-radius: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.03); display: inline-block; z-index: 2; transition: all 0.2s; }
+        
+        #warning-box { position: absolute; top: -10px; right: -10px; background-color: #ff6b6b; color: white; padding: 5px 12px; border-radius: 15px; font-size: 11px; font-weight: bold; box-shadow: 0 4px 10px rgba(255, 107, 107, 0.4); display: none; z-index: 5; animation: pulse-warn 1s infinite alternate; }
+        @keyframes pulse-warn { 0% { transform: scale(1); } 100% { transform: scale(1.1); } }
+
+        #pet-container { height: 110px; display: flex; justify-content: center; align-items: center; font-size: 80px; animation: bounce 2s infinite; transition: all 1s ease-in-out; margin-bottom: 10px; }
+        
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+        @keyframes ascend-glow { 0% { transform: scale(1); filter: drop-shadow(0 0 10px #f1c40f); } 50% { transform: scale(1.3) translateY(-10px); filter: drop-shadow(0 0 40px #f1c40f); } 100% { transform: scale(1.2); filter: drop-shadow(0 0 20px #f1c40f); } }
+        @keyframes pooping-shake { 0%, 100% { transform: translateX(0) scale(1); } 25%, 75% { transform: translateX(-5px) scale(1.05); } 50% { transform: translateX(5px) scale(1.05); } }
+
+        /* แถบสถานะแบบใหม่ */
+        .stats-wrapper { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+        .stat-row { display: flex; align-items: center; width: 100%; }
+        .stat-label { font-size: 13px; font-weight: bold; color: #4a5568; width: 65px; text-align: left; }
+        .bar-bg { flex-grow: 1; background-color: #f0f4f8; border-radius: 10px; height: 12px; overflow: hidden; position: relative; }
+        .bar-fill { height: 100%; border-radius: 10px; transition: width 0.3s ease, background-color 0.3s ease; }
+        
+        #exp-bar { background-color: #2ecc71; }
+        #hunger-bar { background-color: #ff6b6b; }
+        #happy-bar { background-color: #feca57; }
+        #energy-bar { background-color: #48dbfb; }
+
+        /* ปุ่มกดดีไซน์ใหม่ */
+        .controls-wrapper { margin-top: 25px; }
+        .controls-row-1 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+        .controls-row-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 0 15%; }
+        
+        button.action-btn { color: white; border: none; border-radius: 16px; padding: 12px 5px; font-size: 13px; font-weight: bold; cursor: pointer; touch-action: manipulation; display: flex; flex-direction: column; align-items: center; gap: 5px; transition: transform 0.1s, opacity 0.2s; box-shadow: none; line-height: 1.2; }
+        button.action-btn:active:not(:disabled) { transform: scale(0.95); }
+        button.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-icon { font-size: 22px; }
+
+        .btn-teal { background-color: #4cb0a9; }
+        .btn-orange { background-color: #eb903f; }
+        .btn-purple { background-color: #996df0; }
+        .btn-gray { background-color: #9ea6b5; }
+        .btn-blue { background-color: #3d8eee; }
+
+        #btn-restart { display: none; background-color: #ff6b6b; color: white; border: none; border-radius: 16px; padding: 15px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 20px; touch-action: manipulation; transition: transform 0.1s; }
+        #btn-restart:active { transform: scale(0.95); }
+
+        /* --- หน้าต่างควิซ & กล่องสุ่ม (Modal) --- */
+        #quiz-modal { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255,255,255,0.9); border-radius: 40px; z-index: 20; justify-content: center; align-items: center; flex-direction: column; padding: 20px; backdrop-filter: blur(5px); }
+        #quiz-box { background-color: white; padding: 25px; border-radius: 25px; width: 100%; max-width: 340px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.1); border: 1px solid #f1f2f6; }
+        #quiz-content { display: block; } 
+        #box-content { display: none; } 
+        
+        #quiz-question { font-size: 16px; font-weight: bold; margin-bottom: 20px; color: #2d3436; }
+        .quiz-choice { display: block; width: 100%; margin: 10px 0; padding: 14px; background-color: #f8f9fa; color: #2d3436; border: 2px solid #e9ecef; border-radius: 15px; font-size: 14px; cursor: pointer; font-weight: bold; touch-action: manipulation; transition: all 0.2s; }
+        .quiz-choice:active { transform: scale(0.98); background-color: #e9ecef; }
+
+        .box-container { display: flex; justify-content: space-around; margin-top: 20px; }
+        .mystery-box { font-size: 40px; cursor: pointer; background: #feca57; border-radius: 18px; padding: 15px; width: 70px; height: 70px; display: flex; justify-content: center; align-items: center; box-shadow: 0 8px 20px rgba(254, 202, 87, 0.4); touch-action: manipulation; transition: transform 0.1s; }
+        .mystery-box.bad { background: #ff6b6b; box-shadow: 0 8px 20px rgba(255, 107, 107, 0.4); }
+        .mystery-box:active { transform: scale(0.9); box-shadow: none; }
+        
+        #box-message { font-size: 15px; font-weight: bold; margin-bottom: 10px; color: #2d3436; }
+        #close-quiz { margin-top: 20px; background: #f1f2f6; color: #4a5568; border: none; padding: 12px 20px; border-radius: 12px; cursor: pointer; font-weight: bold; width: 100%; transition: background 0.2s;}
+        #close-quiz:active { background: #e2e8f0; }
+    </style>
+</head>
+<body>
+
+    <div id="selection-screen">
+        <h1 style="color: #2d3436; margin-top: 0; font-size: 24px; font-weight: 800;">เลือกสัตว์เลี้ยงของคุณ</h1>
+        <p style="color: #87929d; font-size: 14px;">สอบซ่อมคณิตศาสตร์เพิ่มเติม ม.1<br>ตอบควิซลุ้นสุ่มกล่อง EXP เพื่อพัฒนาร่าง</p>
+        <div class="pet-grid" id="pet-grid"></div>
+    </div>
+
+    <div id="game-boy">
+        <h2 id="pet-title">มอนสเตอร์น้อย</h2>
+        <div class="info-text" id="level-text">Level: 1 | EXP: 0/100 (ร่าง: ไข่)</div>
+        <div class="info-text" id="time-text">⏱️ เวลาเล่น: 0 นาที 0 วินาที</div>
+        
+        <div id="screen">
+            <div id="status-pill-container">
+                <div id="status-text">พร้อมเรียนรู้!</div>
+                <div id="warning-box"></div>
+            </div>
+            
+            <div id="pet-container">🥚</div>
+            
+            <div class="stats-wrapper">
+                <div class="stat-row">
+                    <div class="stat-label">EXP</div>
+                    <div class="bar-bg"><div class="bar-fill" id="exp-bar"></div></div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-label">อาหาร</div>
+                    <div class="bar-bg"><div class="bar-fill" id="hunger-bar"></div></div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-label">ความสุข</div>
+                    <div class="bar-bg"><div class="bar-fill" id="happy-bar"></div></div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-label">พลังงาน</div>
+                    <div class="bar-bg"><div class="bar-fill" id="energy-bar"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-wrapper" id="controls">
+            <div class="controls-row-1">
+                <button class="action-btn btn-teal" id="btn-quiz" onclick="openQuiz()"><span class="btn-icon">📖</span>ควิซ</button>
+                <button class="action-btn btn-orange" id="btn-feed" onclick="feed()"><span class="btn-icon">🍖</span>อาหาร</button>
+                <button class="action-btn btn-purple" id="btn-play" onclick="play()"><span class="btn-icon">🎾</span>เล่น</button>
+            </div>
+            <div class="controls-row-2">
+                <button class="action-btn btn-gray" id="btn-poop" onclick="poop()"><span class="btn-icon">💩</span>ขับถ่าย</button>
+                <button class="action-btn btn-blue" id="btn-sleep" onclick="sleep()"><span class="btn-icon">💤</span>นอน</button>
+            </div>
+        </div>
+        
+        <button id="btn-restart" onclick="safeRestart()">🔄 เริ่มเกมใหม่</button>
+        
+        <div style="margin-top: 20px; font-size: 12px; color: #a4b0be; cursor: pointer; text-decoration: underline;" onclick="safeRestart()">⚠️ ล้างข้อมูลเซฟ (กรณีเกมค้าง)</div>
+
+        <div id="quiz-modal">
+            <div id="quiz-box">
+                <div id="quiz-content" style="display: block;">
+                    <div id="quiz-question"></div>
+                    <div id="quiz-choices"></div>
+                    <button id="close-quiz" onclick="playSound('click'); closeQuiz()">ยกเลิก</button>
+                </div>
+                <div id="box-content" style="display: none;">
+                    <div id="box-message"></div>
+                    <div class="box-container" id="box-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        const SUBJECT_NAME = "Math_M1_Add1"; 
+        const SAVE_KEY = "tamagotchiSave_" + SUBJECT_NAME; 
+
+        // --- ระบบเสียง ---
+        let audioCtx;
+        function initAudio() {
+            try {
+                if (!audioCtx) { 
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if(AudioContext) audioCtx = new AudioContext(); 
+                }
+                if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            } catch (e) { console.log("Audio not supported"); }
+        }
+
+        function playSound(type) {
+            try {
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') { 
+                    osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); 
+                    osc.start(now); osc.stop(now + 0.1);
+                } 
+                else if (type === 'correct') { 
+                    osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.linearRampToValueAtTime(900, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3); 
+                    osc.start(now); osc.stop(now + 0.3);
+                } 
+                else if (type === 'wrong') { 
+                    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(250, now); osc.frequency.linearRampToValueAtTime(150, now + 0.2);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.3); 
+                    osc.start(now); osc.stop(now + 0.3);
+                }
+                else if (type === 'levelup') {
+                    osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(600, now + 0.1); osc.frequency.setValueAtTime(800, now + 0.2);
+                    gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0, now + 0.4); 
+                    osc.start(now); osc.stop(now + 0.4);
+                }
+                else if (type === 'victory') { 
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(261.63, now); osc.frequency.setValueAtTime(329.63, now + 0.15); 
+                    osc.frequency.setValueAtTime(392.00, now + 0.3); osc.frequency.setValueAtTime(523.25, now + 0.45); 
+                    gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+                    gain.gain.setValueAtTime(0.2, now + 0.45); gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+                    osc.start(now); osc.stop(now + 1.5);
+                }
+            } catch (e) { console.log("Play sound error"); }
+        }
+
+        // --- ฐานข้อมูลสัตว์เลี้ยง 20 ชนิด ---
+        const petDatabase = [
+            { name: "มังกรไฟ", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่' }, { reqLevel: 5, emoji: '🦎', name: 'กิ้งก่าไฟ' }, { reqLevel: 10, emoji: '🦖', name: 'มังกรวัยรุ่น' }, { reqLevel: 15, emoji: '🐉', name: 'มังกรเพลิง' }, { reqLevel: 20, emoji: '☄️', name: 'เทพบรรพกาลเพลิง' } ] },
+            { name: "สไลม์น้ำ", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่ใส' }, { reqLevel: 5, emoji: '💧', name: 'สไลม์น้อย' }, { reqLevel: 10, emoji: '🧊', name: 'สไลม์เกราะ' }, { reqLevel: 15, emoji: '🌊', name: 'คิงสไลม์' }, { reqLevel: 20, emoji: '🔱', name: 'เทพสมุทร' } ] },
+            { name: "ปีศาจมืด", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่มืด' }, { reqLevel: 5, emoji: '🦇', name: 'ค้างคาว' }, { reqLevel: 10, emoji: '🧛', name: 'แวมไพร์' }, { reqLevel: 15, emoji: '👿', name: 'ลอร์ดปีศาจ' }, { reqLevel: 20, emoji: '🌌', name: 'จอมมารจักรวาล' } ] },
+            { name: "แฟรี่ป่า", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่แสง' }, { reqLevel: 5, emoji: '🐛', name: 'หนอนเวทย์' }, { reqLevel: 10, emoji: '🦋', name: 'ผีเสื้อเวทย์' }, { reqLevel: 15, emoji: '🧚‍♀️', name: 'แฟรี่' }, { reqLevel: 20, emoji: '👼', name: 'มหาเทวีพฤกษา' } ] },
+            { name: "โกเลมหิน", stages: [ { reqLevel: 1, emoji: '🥚', name: 'หินกลม' }, { reqLevel: 5, emoji: '🪨', name: 'หินมีชีวิต' }, { reqLevel: 10, emoji: '🧱', name: 'นักรบหิน' }, { reqLevel: 15, emoji: '🗿', name: 'โกเลมยักษ์' }, { reqLevel: 20, emoji: '🏔️', name: 'เทพขุนเขา' } ] },
+            { name: "พฤกษาเวทย์", stages: [ { reqLevel: 1, emoji: '🥚', name: 'เมล็ด' }, { reqLevel: 5, emoji: '🌱', name: 'ต้นอ่อน' }, { reqLevel: 10, emoji: '🌿', name: 'ไม้เลื้อย' }, { reqLevel: 15, emoji: '🌳', name: 'พฤกษาโบราณ' }, { reqLevel: 20, emoji: '🌺', name: 'พฤกษาศักดิ์สิทธิ์' } ] },
+            { name: "หมาป่าพายุ", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่ขนสัตว์' }, { reqLevel: 5, emoji: '🐶', name: 'ลูกหมาป่า' }, { reqLevel: 10, emoji: '🐕', name: 'หมาป่าเขี้ยว' }, { reqLevel: 15, emoji: '🐺', name: 'หมาป่าวายุ' }, { reqLevel: 20, emoji: '🌪️', name: 'จ้าวแห่งพายุ' } ] },
+            { name: "แมวผีสิง", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่วิญญาณ' }, { reqLevel: 5, emoji: '🐱', name: 'ลูกแมวผี' }, { reqLevel: 10, emoji: '🙀', name: 'แมวตาโบ๋' }, { reqLevel: 15, emoji: '🐈‍⬛', name: 'ปีศาจแมว' }, { reqLevel: 20, emoji: '👻', name: 'ยมทูตแมว' } ] },
+            { name: "ฟินิกซ์", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่เถ้าถ่าน' }, { reqLevel: 5, emoji: '🐥', name: 'ลูกนกไฟ' }, { reqLevel: 10, emoji: '🦅', name: 'เหยี่ยวเพลิง' }, { reqLevel: 15, emoji: '🦚', name: 'พญาฟินิกซ์' }, { reqLevel: 20, emoji: '🔥', name: 'วิญญาณเพลิงอมตะ' } ] },
+            { name: "ยูนิคอร์น", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่รุ้ง' }, { reqLevel: 5, emoji: '🐴', name: 'ลูกม้าขาว' }, { reqLevel: 10, emoji: '🎠', name: 'ม้าติดปีก' }, { reqLevel: 15, emoji: '🦄', name: 'ยูนิคอร์น' }, { reqLevel: 20, emoji: '🌈', name: 'เทพอัสดรแสง' } ] },
+            { name: "ออร์คนักรบ", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่หนัง' }, { reqLevel: 5, emoji: '🐷', name: 'ลูกหมู' }, { reqLevel: 10, emoji: '🧌', name: 'นักรบออร์ค' }, { reqLevel: 15, emoji: '🐗', name: 'ขุนศึกออร์ค' }, { reqLevel: 20, emoji: '🪓', name: 'เทพเจ้าสงคราม' } ] },
+            { name: "คราเคน", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่ใต้น้ำ' }, { reqLevel: 5, emoji: '🐟', name: 'ปลาปีศาจ' }, { reqLevel: 10, emoji: '🐡', name: 'หมึกพิษ' }, { reqLevel: 15, emoji: '🐙', name: 'อสูรหนวด' }, { reqLevel: 20, emoji: '🦑', name: 'จ้าวสมุทรลึก' } ] },
+            { name: "อารัคเน่", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่ใยแมงมุม' }, { reqLevel: 5, emoji: '🐛', name: 'หนอนพิษ' }, { reqLevel: 10, emoji: '🐞', name: 'แมงมุมจิ๋ว' }, { reqLevel: 15, emoji: '🕷️', name: 'ราชินีแมงมุม' }, { reqLevel: 20, emoji: '🕸️', name: 'มารดาแห่งพิษ' } ] },
+            { name: "กบกลายพันธุ์", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่' }, { reqLevel: 5, emoji: '🦠', name: 'นิวเคลียส' }, { reqLevel: 10, emoji: '🐸', name: 'กบยักษ์' }, { reqLevel: 15, emoji: '☢️', name: 'กบนิวเคลียร์' }, { reqLevel: 20, emoji: '🌌', name: 'เทพเจ้ากบ' } ] },
+            { name: "บาซิลิสก์", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่เกล็ด' }, { reqLevel: 5, emoji: '🪱', name: 'ไส้เดือนดิน' }, { reqLevel: 10, emoji: '🐍', name: 'งูจงอาง' }, { reqLevel: 15, emoji: '🐉', name: 'บาซิลิสก์' }, { reqLevel: 20, emoji: '👁️', name: 'มังกรเนตรสังหาร' } ] },
+            { name: "หมีเกราะเหล็ก", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่เหล็ก' }, { reqLevel: 5, emoji: '🧸', name: 'ตุ๊กตาหมี' }, { reqLevel: 10, emoji: '🐼', name: 'หมีนักสู้' }, { reqLevel: 15, emoji: '🐻', name: 'หมีเกราะ' }, { reqLevel: 20, emoji: '🛡️', name: 'ป้อมปราการมีชีวิต' } ] },
+            { name: "เต่ามังกร", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่หินหยก' }, { reqLevel: 5, emoji: '🐢', name: 'เต่าน้อย' }, { reqLevel: 10, emoji: '🦎', name: 'เต่าหนาม' }, { reqLevel: 15, emoji: '🐊', name: 'เต่ามังกร' }, { reqLevel: 20, emoji: '🐲', name: 'มังกรพสุธา' } ] },
+            { name: "สิงโตทองคำ", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ไข่ทองคำ' }, { reqLevel: 5, emoji: '😺', name: 'ลูกสิงโต' }, { reqLevel: 10, emoji: '🐅', name: 'สิงโตหนุ่ม' }, { reqLevel: 15, emoji: '🦁', name: 'ราชาสิงโต' }, { reqLevel: 20, emoji: '👑', name: 'จักรพรรดิทองคำ' } ] },
+            { name: "เอเลี่ยน", stages: [ { reqLevel: 1, emoji: '🥚', name: 'แคปซูล' }, { reqLevel: 5, emoji: '👾', name: 'ปรสิต' }, { reqLevel: 10, emoji: '🤖', name: 'ไซบอร์ก' }, { reqLevel: 15, emoji: '👽', name: 'เอเลี่ยน' }, { reqLevel: 20, emoji: '🛸', name: 'จ้าวแห่งจักรวาล' } ] },
+            { name: "ไดโนเสาร์", stages: [ { reqLevel: 1, emoji: '🥚', name: 'ฟอสซิล' }, { reqLevel: 5, emoji: '🦎', name: 'ลูกไดโนเสาร์' }, { reqLevel: 10, emoji: '🦤', name: 'แรปเตอร์' }, { reqLevel: 15, emoji: '🦖', name: 'ทีเร็กซ์' }, { reqLevel: 20, emoji: '🌋', name: 'อสูรล้านปี' } ] }
+        ];
+
+        // --- ฐานข้อมูลโจทย์ 100 ข้อ (คณิตศาสตร์เพิ่มเติม ม.2) ---
+        const questions = [
+            { q: "ความยาวด้านในข้อใด สามารถประกอบเป็นรูปสามเหลี่ยมได้?", choices: ["1, 2, 3", "2, 3, 6", "3, 4, 5", "1, 1, 3"], answer: 2 },
+            { q: "ถ้าสามเหลี่ยมมีด้านยาว 5 และ 8 หน่วย ด้านที่สามจะเป็นไปได้คือข้อใด?", choices: ["3", "12", "14", "2"], answer: 1 },
+            { q: "ความยาวด้านเซตใดประกอบเป็นรูปสามเหลี่ยมหน้าจั่วได้?", choices: ["2, 2, 5", "3, 3, 8", "4, 4, 6", "1, 5, 5"], answer: 2 },
+            { q: "รูปสามเหลี่ยมด้านไม่เท่า ด้านทั้งสามคือ 6, 9 และ x ค่า x ที่เป็นจำนวนเต็มที่น้อยที่สุดคือ?", choices: ["3", "4", "5", "6"], answer: 1 },
+            { q: "ความยาว 5, 12, 13 ประกอบเป็นรูปสามเหลี่ยมชนิดใด?", choices: ["สามเหลี่ยมมุมแหลม", "สามเหลี่ยมมุมป้าน", "สามเหลี่ยมมุมฉาก", "ประกอบเป็นสามเหลี่ยมไม่ได้"], answer: 2 },
+            { q: "ข้อใดกล่าวถูกต้องเกี่ยวกับความยาวด้านของรูปสามเหลี่ยม?", choices: ["ผลบวกสองด้านต้องน้อยกว่าด้านที่สาม", "ผลบวกสองด้านต้องมากกว่าด้านที่สาม", "ผลต่างสองด้านต้องมากกว่าด้านที่สาม", "ด้านที่ยาวที่สุดต้องมากกว่าผลบวกสองด้านที่เหลือ"], answer: 1 },
+            { q: "จุดที่อยู่ห่างจากจุดศูนย์กลางน้อยกว่ารัศมี เรียกว่าอะไร?", choices: ["จุดบนเส้นรอบวง", "จุดภายนอก", "จุดภายใน", "จุดตัด"], answer: 2 },
+            { q: "ถ้ารัศมีวงกลมคือ 5 ซม. จุด A อยู่ห่างจากจุดศูนย์กลาง 7 ซม. จุด A อยู่ที่ใด?", choices: ["จุดภายใน", "จุดภายนอก", "จุดบนเส้นรอบวง", "จุดศูนย์กลาง"], answer: 1 },
+            { q: "แทนแกรม (Tangram) ประกอบด้วยชิ้นส่วนทั้งหมดกี่ชิ้น?", choices: ["5 ชิ้น", "6 ชิ้น", "7 ชิ้น", "8 ชิ้น"], answer: 2 },
+            { q: "ชิ้นส่วนของแทนแกรม มีรูปสามเหลี่ยมกี่ชิ้น?", choices: ["3 ชิ้น", "4 ชิ้น", "5 ชิ้น", "6 ชิ้น"], answer: 2 },
+            { q: "ชิ้นส่วนใดที่ไม่มีอยู่ในชุดแทนแกรมมาตรฐาน?", choices: ["รูปสี่เหลี่ยมจัตุรัส", "รูปสี่เหลี่ยมผืนผ้า", "รูปสามเหลี่ยมมุมฉาก", "รูปห้าเหลี่ยม"], answer: 3 },
+            { q: "รูปสี่เหลี่ยมในชุดแทนแกรมคือรูปสี่เหลี่ยมชนิดใด?", choices: ["จัตุรัส และ ด้านขนาน", "ผืนผ้า และ คางหมู", "รูปว่าว และ จัตุรัส", "ขนมเปียกปูน และ ผืนผ้า"], answer: 0 },
+            { q: "จำนวนเฉพาะที่น้อยที่สุดคือจำนวนใด?", choices: ["0", "1", "2", "3"], answer: 2 },
+            { q: "ข้อใดคือการแยกตัวประกอบของ 24?", choices: ["4 x 6", "2³ x 3", "2 x 3 x 4", "8 x 3"], answer: 1 },
+            { q: "ผลลัพธ์ของ 2³ + 3² คือข้อใด?", choices: ["12", "15", "17", "25"], answer: 2 },
+            { q: "จำนวนในข้อใดเป็นจำนวนเฉพาะทั้งหมด?", choices: ["2, 3, 5, 9", "2, 5, 11, 13", "3, 7, 15, 19", "1, 2, 3, 5"], answer: 1 },
+            { q: "จำนวนที่มีตัวประกอบเพียง 2 ตัวคือ 1 และตัวมันเอง เรียกว่าอะไร?", choices: ["จำนวนเต็ม", "จำนวนเฉพาะ", "จำนวนประกอบ", "จำนวนคู่"], answer: 1 },
+            { q: "2⁵ มีค่าเท่ากับเท่าใด?", choices: ["10", "16", "25", "32"], answer: 3 },
+            { q: "ข้อใดเขียนในรูปเลขยกกำลังได้ถูกต้อง? (3 × 3 × 3 × 3)", choices: ["4³", "3⁴", "12", "34"], answer: 1 },
+            { q: "จำนวนใดไม่เป็นจำนวนเฉพาะ?", choices: ["31", "41", "51", "51 (เพราะหาร 3 ลงตัว)"], answer: 3 },
+            { q: "ตัวประกอบเฉพาะของ 60 มีกี่ตัว?", choices: ["2 ตัว (คือ 2,3)", "3 ตัว", "4 ตัว", "5 ตัว"], answer: 0 },
+            { q: "การหาจำนวนเฉพาะในรูปแบบ 2ⁿ - 1 เรียกว่าอะไร?", choices: ["จำนวนเฉพาะแมร์แซน", "จำนวนเฉพาะแฟร์มาต์", "จำนวนเฉพาะออยเลอร์", "จำนวนเฉพาะยุคลิด"], answer: 0 },
+            { q: "ถ้า n = 3 แล้ว 2ⁿ - 1 มีค่าเท่าใด และเป็นจำนวนเฉพาะหรือไม่?", choices: ["5, เป็น", "7, เป็น", "8, ไม่เป็น", "9, ไม่เป็น"], answer: 1 },
+            { q: "ห.ร.ม. ของ 12 และ 18 คือข้อใด?", choices: ["3", "4", "6", "36"], answer: 2 },
+            { q: "ห.ร.ม. ของ 15, 30 และ 45 คือข้อใด?", choices: ["5", "10", "15", "30"], answer: 2 },
+            { q: "การหา ห.ร.ม. โดยวิธีตั้งหารยาวสลับกันไปมา เรียกว่าวิธีอะไร?", choices: ["วิธีแยกตัวประกอบ", "วิธีของยูคลิด", "วิธีหารสั้น", "วิธีคูณไขว้"], answer: 1 },
+            { q: "ถ้า a และ b มี ห.ร.ม. คือ 1 เรียก a และ b ว่าอะไร?", choices: ["จำนวนเฉพาะสัมพัทธ์", "จำนวนเต็มบวก", "จำนวนตรรกยะ", "จำนวนประกอบ"], answer: 0 },
+            { q: "ในการหา ห.ร.ม. ของ 48 กับ 30 โดยวิธียูคลิด เศษจากการหารรอบแรกคือเท่าใด?", choices: ["12", "18", "24", "30"], answer: 1 },
+            { q: "ห.ร.ม. ของ 2³ × 3² และ 2² × 3³ คือข้อใด?", choices: ["2² × 3²", "2³ × 3³", "36", "ข้อ 1 และ 3 ถูก"], answer: 3 },
+            { q: "จำนวนนับที่มากที่สุดที่นำไปหาร 25 และ 37 แล้วเหลือเศษ 1 เท่ากัน คือจำนวนใด?", choices: ["4", "6", "12", "24"], answer: 2 },
+            { q: "ถ้า x คือ ห.ร.ม. ของ 14 และ 21 แล้ว x+5 มีค่าเท่าใด?", choices: ["10", "12", "14", "16"], answer: 1 },
+            { q: "ในการหา ห.ร.ม. ของ 105 และ 45 โดยวิธียูคลิด จะต้องตั้งหารกี่รอบจนกว่าจะลงตัว?", choices: ["1 รอบ", "2 รอบ", "3 รอบ", "4 รอบ"], answer: 1 },
+            { q: "ห.ร.ม. ของจำนวนคู่สองจำนวนเรียงติดกัน จะมีค่าเท่ากับเท่าใดเสมอ?", choices: ["1", "2", "3", "บอกไม่ได้"], answer: 1 },
+            { q: "ค.ร.น. ของ 4 และ 6 คือข้อใด?", choices: ["12", "24", "2", "10"], answer: 0 },
+            { q: "ค.ร.น. ของ 10, 15 และ 20 คือข้อใด?", choices: ["30", "45", "60", "120"], answer: 2 },
+            { q: "ข้อใดคือ ค.ร.น. ของจำนวนเฉพาะสองจำนวน a และ b?", choices: ["a + b", "a - b", "a * b", "1"], answer: 2 },
+            { q: "ความสัมพันธ์ของ ห.ร.ม. และ ค.ร.น. ของเลขสองจำนวน A, B คือข้อใด?", choices: ["ห.ร.ม. + ค.ร.น. = A + B", "ห.ร.ม. × ค.ร.น. = A × B", "ค.ร.น. / ห.ร.ม. = A / B", "ห.ร.ม. - ค.ร.น. = A - B"], answer: 1 },
+            { q: "ถ้า ห.ร.ม. และ ค.ร.น. ของเลขสองจำนวนคือ 5 และ 30 ตามลำดับ เลขตัวหนึ่งคือ 10 อีกตัวคือเท่าใด?", choices: ["15", "20", "25", "30"], answer: 0 },
+            { q: "ระฆัง 3 ใบ ตีทุก 15, 20 และ 30 นาที จะตีพร้อมกันครั้งต่อไปเมื่อผ่านไปกี่นาที?", choices: ["45 นาที", "60 นาที", "90 นาที", "120 นาที"], answer: 1 },
+            { q: "ค.ร.น. ของ 2² × 3 และ 2 × 3² คือข้อใด?", choices: ["2 × 3", "2² × 3²", "6", "18"], answer: 1 },
+            { q: "จำนวนนับที่น้อยที่สุดที่หารด้วย 4, 6 และ 8 แล้วเหลือเศษ 0 คือจำนวนใด?", choices: ["12", "18", "24", "48"], answer: 2 },
+            { q: "จำนวนนับที่น้อยที่สุดที่หารด้วย 3 และ 5 แล้วเหลือเศษ 1 เท่ากัน คือจำนวนใด?", choices: ["15", "16", "30", "31"], answer: 1 },
+            { q: "การหา ค.ร.น. โดยใช้วิธีนำ ห.ร.ม. ไปหารผลคูณของสองจำนวนนั้น เป็นการประยุกต์ใช้วิธีใด?", choices: ["วิธียูคลิด", "วิธีหารสั้น", "วิธีแยกตัวประกอบ", "วิธีคูณไขว้"], answer: 0 },
+            { q: "ร้อยละ 20 ของ 500 มีค่าเท่ากับเท่าใด?", choices: ["50", "80", "100", "120"], answer: 2 },
+            { q: "15% ของ 200 มีค่าเท่าใด?", choices: ["15", "30", "45", "60"], answer: 1 },
+            { q: "40 คิดเป็นกี่เปอร์เซ็นต์ของ 200?", choices: ["10%", "20%", "25%", "40%"], answer: 1 },
+            { q: "ร้อยละ 5 ของ 1,000 คือเท่าใด?", choices: ["5", "50", "500", "5000"], answer: 1 },
+            { q: "เงิน 150 บาท คิดเป็น 30% ของเงินทั้งหมด เงินทั้งหมดคือเท่าใด?", choices: ["300 บาท", "400 บาท", "500 บาท", "600 บาท"], answer: 2 },
+            { q: "3/4 คิดเป็นร้อยละเท่าใด?", choices: ["25%", "50%", "75%", "100%"], answer: 2 },
+            { q: "0.25 เขียนให้อยู่ในรูปร้อยละได้เท่าใด?", choices: ["2.5%", "25%", "0.25%", "250%"], answer: 1 },
+            { q: "ร้อยละ 150 ของ 40 มีค่าเท่าใด?", choices: ["50", "60", "70", "80"], answer: 1 },
+            { q: "12 เป็น 5% ของจำนวนใด?", choices: ["60", "120", "240", "600"], answer: 2 },
+            { q: "20% ของ 30% ของ 1,000 มีค่าเท่าใด?", choices: ["50", "60", "600", "500"], answer: 1 },
+            { q: "ซื้อของมา 100 บาท ขายไป 120 บาท ได้กำไรกี่เปอร์เซ็นต์?", choices: ["10%", "20%", "30%", "40%"], answer: 1 },
+            { q: "ซื้อเสื้อมา 200 บาท ขายขาดทุน 10% ขายไปราคาเท่าใด?", choices: ["180 บาท", "190 บาท", "210 บาท", "220 บาท"], answer: 0 },
+            { q: "ติดป้ายราคา 500 บาท ลดราคา 20% ผู้ซื้อต้องจ่ายเงินเท่าใด?", choices: ["350 บาท", "400 บาท", "450 บาท", "500 บาท"], answer: 1 },
+            { q: "ขายของได้กำไร 25% หมายความว่าอย่างไร?", choices: ["ทุน 100 ขาย 75", "ทุน 100 ขาย 125", "ทุน 125 ขาย 100", "ทุน 75 ขาย 100"], answer: 1 },
+            { q: "ซื้อกระเป๋า 300 บาท ต้องการกำไร 15% ต้องขายราคาเท่าใด?", choices: ["315 บาท", "330 บาท", "345 บาท", "350 บาท"], answer: 2 },
+            { q: "ขายรองเท้า 480 บาท ขาดทุน 20% ทุนของรองเท้าคือเท่าใด?", choices: ["500 บาท", "550 บาท", "600 บาท", "650 บาท"], answer: 2 },
+            { q: "ร้านค้าซื้อดินสอมา 10 แท่ง 50 บาท ขายแท่งละ 6 บาท ได้กำไรกี่เปอร์เซ็นต์?", choices: ["10%", "20%", "30%", "40%"], answer: 1 },
+            { q: "ขายโทรศัพท์ 5,000 บาท ได้กำไร 25% ต้นทุนโทรศัพท์คือเท่าใด?", choices: ["3,500 บาท", "4,000 บาท", "4,500 บาท", "5,000 บาท"], answer: 1 },
+            { q: "ซื้อมา 800 ขายไป 1,000 คิดเป็นกำไรร้อยละเท่าใด?", choices: ["20%", "25%", "30%", "40%"], answer: 1 },
+            { q: "ถ้าราคาขายรวมกำไร 10% คือ 110 บาท ถ้ารวมกำไร 20% ราคาขายจะเป็นเท่าใด?", choices: ["115 บาท", "120 บาท", "125 บาท", "130 บาท"], answer: 1 },
+            { q: "สินค้าลดราคา 10% แล้วลดอีก 10% เทียบเท่ากับลดรวดเดียวกี่เปอร์เซ็นต์?", choices: ["19%", "20%", "21%", "18%"], answer: 0 },
+            { q: "ป้ายราคา 1,000 บาท ลด 20% และสำหรับสมาชิก ลดเพิ่มอีก 10% ต้องจ่ายเท่าใด?", choices: ["700 บาท", "720 บาท", "800 บาท", "900 บาท"], answer: 1 },
+            { q: "โปรโมชัน ลด 50% + 50% หมายถึงอะไร?", choices: ["ได้ฟรี", "ลด 100%", "ลด 75%", "ลด 50%"], answer: 2 },
+            { q: "สินค้า 500 บาท ลด 10% สองครั้งติดกัน ราคาจะเหลือเท่าใด?", choices: ["400 บาท", "405 บาท", "410 บาท", "450 บาท"], answer: 1 },
+            { q: "การลดราคาแบบ ลด 20% แล้วลดอีก 30% เทียบเท่ากับลดครั้งเดียวกี่เปอร์เซ็นต์?", choices: ["44%", "50%", "56%", "60%"], answer: 0 },
+            { q: "ราคา 2,000 บาท ลด 10% บัตรเครดิตลดเพิ่ม 5% ลดไปทั้งหมดกี่บาท?", choices: ["290 บาท", "300 บาท", "310 บาท", "1,710 บาท"], answer: 0 },
+            { q: "สูตรคำนวณดอกเบี้ยอย่างง่าย คือข้อใด?", choices: ["เงินต้น × อัตราดอกเบี้ย", "เงินต้น × เวลา", "เงินต้น × อัตราดอกเบี้ย × เวลา", "อัตราดอกเบี้ย × เวลา"], answer: 2 },
+            { q: "ฝากเงิน 10,000 บาท อัตราดอกเบี้ย 2% ต่อปี ฝาก 1 ปี จะได้ดอกเบี้ยกี่บาท?", choices: ["20 บาท", "200 บาท", "2,000 บาท", "10,200 บาท"], answer: 1 },
+            { q: "กู้เงิน 5,000 บาท ดอกเบี้ยร้อยละ 5 ต่อปี เวลา 2 ปี ต้องคืนเงินรวมทั้งหมดเท่าใด?", choices: ["500 บาท", "5,250 บาท", "5,500 บาท", "6,000 บาท"], answer: 2 },
+            { q: "ดอกเบี้ยที่คิดจากเงินต้นรวมกับดอกเบี้ยของงวดก่อนหน้า เรียกว่าอะไร?", choices: ["ดอกเบี้ยคงที่", "ดอกเบี้ยทบต้น", "ดอกเบี้ยลอยตัว", "ดอกเบี้ยเชิงเดียว"], answer: 1 },
+            { q: "ฝากเงิน 1,000 บาท ดอกเบี้ย 10% ต่อปี ฝาก 6 เดือน จะได้ดอกเบี้ยเท่าใด?", choices: ["100 บาท", "50 บาท", "10 บาท", "5 บาท"], answer: 1 },
+            { q: "ถ้าได้ดอกเบี้ย 400 บาท จากการฝากเงิน 2 ปี ด้วยอัตราดอกเบี้ย 4% เงินต้นคือเท่าใด?", choices: ["5,000 บาท", "10,000 บาท", "4,000 บาท", "8,000 บาท"], answer: 0 },
+            { q: "สัญลักษณ์ V ในระบบเลขโรมัน มีค่าเท่ากับเท่าใดในเลขฮินดูอารบิก?", choices: ["1", "5", "10", "50"], answer: 1 },
+            { q: "สัญลักษณ์ X มีค่าเท่ากับเท่าใด?", choices: ["5", "10", "50", "100"], answer: 1 },
+            { q: "สัญลักษณ์ L มีค่าเท่ากับเท่าใด?", choices: ["10", "50", "100", "500"], answer: 1 },
+            { q: "สัญลักษณ์ C มีค่าเท่ากับเท่าใด?", choices: ["50", "100", "500", "1000"], answer: 1 },
+            { q: "สัญลักษณ์ D และ M มีค่าเท่ากับเท่าใดตามลำดับ?", choices: ["100 และ 500", "500 และ 1000", "1000 และ 5000", "50 และ 100"], answer: 1 },
+            { q: "เลขโรมัน IX มีค่าเท่ากับเท่าใด?", choices: ["9", "11", "10", "12"], answer: 0 },
+            { q: "เลขโรมัน IV มีค่าเท่ากับเท่าใด?", choices: ["4", "6", "5", "14"], answer: 0 },
+            { q: "เลขโรมัน XL มีค่าเท่ากับเท่าใด?", choices: ["40", "60", "50", "110"], answer: 0 },
+            { q: "เลขโรมัน XC มีค่าเท่ากับเท่าใด?", choices: ["90", "110", "100", "99"], answer: 0 },
+            { q: "เลขโรมัน CM มีค่าเท่ากับเท่าใด?", choices: ["900", "1100", "1000", "990"], answer: 0 },
+            { q: "จำนวน 24 เขียนเป็นเลขโรมันได้อย่างไร?", choices: ["XXIV", "XXVI", "XIVV", "XXIIII"], answer: 0 },
+            { q: "จำนวน 49 เขียนเป็นเลขโรมันได้อย่างไร?", choices: ["IL", "XXXXIX", "XLIX", "LIX"], answer: 2 },
+            { q: "เลขโรมัน MMXXIV ตรงกับปี ค.ศ. ใด?", choices: ["2020", "2022", "2024", "2204"], answer: 2 },
+            { q: "จำนวนใดไม่สามารถเขียนติดกันเกิน 3 ตัวได้ในระบบเลขโรมันมาตรฐาน?", choices: ["I, X, C", "V, L, D", "ทุกสัญลักษณ์", "ไม่มีข้อจำกัด"], answer: 0 },
+            { q: "CDLXXV มีค่าเท่ากับตัวเลขใด?", choices: ["475", "675", "455", "655"], answer: 0 },
+            { q: "ระบบตัวเลขที่เราใช้ในชีวิตประจำวันคือระบบเลขฐานใด?", choices: ["ฐานสอง", "ฐานแปด", "ฐานสิบ", "ฐานสิบหก"], answer: 2 },
+            { q: "เลข 5 ในจำนวน 3,542 อยู่ในหลักใด และมีค่าประจำหลักเท่าใด?", choices: ["หลักร้อย, 500", "หลักร้อย, 100", "หลักสิบ, 50", "หลักพัน, 1000"], answer: 1 },
+            { q: "การกระจาย 4,025 คือข้อใด?", choices: ["4×10³ + 2×10² + 5", "4×10³ + 2×10¹ + 5×10⁰", "4×10⁴ + 25", "40 + 25"], answer: 1 },
+            { q: "ข้อใดคือค่าของ 7 × 10² + 3 × 10⁰?", choices: ["73", "703", "730", "7003"], answer: 1 },
+            { q: "ระบบเลขฐานสิบ มีเลขโดดทั้งหมดกี่ตัว?", choices: ["9 ตัว (1-9)", "10 ตัว (0-9)", "10 ตัว (1-10)", "ไม่มีข้อจำกัด"], answer: 1 },
+            { q: "ค่าของเลขโดดขึ้นอยู่กับสิ่งใดในระบบเลขฐานสิบ?", choices: ["ตำแหน่งหรือหลัก", "ขนาดของตัวเลข", "ตัวเลขที่อยู่ข้างหน้า", "ตัวเลขที่อยู่ข้างหลัง"], answer: 0 },
+            { q: "ในจำนวน 12,345 เลข 1 มีค่ามากกว่าเลข 2 อยู่เท่าใด?", choices: ["8,000", "10,000", "1,000", "9,000"], answer: 0 },
+            { q: "หลักที่อยู่ทางซ้ายมือของหลักแสน คือหลักใด?", choices: ["หลักหมื่น", "หลักล้าน", "หลักสิบล้าน", "หลักพัน"], answer: 1 },
+            { q: "จำนวนเก้าหมื่นเก้าพันสิบเอ็ด เขียนเป็นตัวเลขได้อย่างไร?", choices: ["99,110", "99,011", "90,911", "99,101"], answer: 1 },
+            { q: "10⁴ มีค่าเท่ากับเท่าใด?", choices: ["1,000", "10,000", "100,000", "1,000,000"], answer: 1 },
+            { q: "500 + 40 + 8 เป็นรูปแบบการเขียนที่เรียกว่าอะไร?", choices: ["การประมาณค่า", "การกระจาย", "การจัดกลุ่ม", "เลขยกกำลัง"], answer: 1 },
+            { q: "ระบบเลขฮินดูอารบิก มีต้นกำเนิดมาจากประเทศใด?", choices: ["อียิปต์", "อินเดียและอาหรับ", "อิตาลี", "กรีก"], answer: 1 },
+            { q: "ค่าประจำหลักของหลักร้อยล้านคือข้อใด?", choices: ["10⁶", "10⁷", "10⁸", "10⁹"], answer: 2 },
+            { q: "สัญลักษณ์ที่ใช้แทนความว่างเปล่าในระบบเลขฐานสิบคืออะไร?", choices: ["1", "0", "X", "ไม่มีสัญลักษณ์"], answer: 1 },
+            { q: "ตัวเลข 2 ในจำนวน 205 กับ 52 มีค่าต่างกันเท่าใด?", choices: ["198", "190", "200", "188"], answer: 0 },
+            { q: "จำนวนเฉพาะที่อยู่ระหว่าง 10 ถึง 20 มีกี่จำนวน?", choices: ["3 จำนวน", "4 จำนวน", "5 จำนวน", "6 จำนวน"], answer: 1 }
+        ];
+
+        // --- รางวัลและบทลงโทษ ---
+        const rewards = [
+            { text: "แจ็คพอต! ความรู้แตกฉาน ได้ EXP (+80) 🌟", effect: () => { stats.exp += 80; playSound('levelup'); } },
+            { text: "ยอดเยี่ยม! ได้โบนัส EXP (+50) ✨", effect: () => { stats.exp += 50; playSound('correct'); } },
+            { text: "เก่งมาก! ได้รับ EXP (+35) 📚", effect: () => { stats.exp += 35; playSound('correct'); } },
+            { text: "ถูกต้อง! ได้รับ EXP (+20) 💡", effect: () => { stats.exp += 20; playSound('correct'); } },
+            { text: "ถูกต้อง! ได้ EXP (+15) และ ขนมกินเล่นนิดหน่อย 🍬", effect: () => { stats.exp += 15; stats.hunger = Math.min(100, stats.hunger + 10); playSound('correct'); } }
+        ];
+
+        const punishments = [
+            { text: "แย่แล้ว! อาหารบูด (ความหิว -20) ❌", effect: () => { stats.hunger = Math.max(0, stats.hunger - 20); playSound('wrong'); } },
+            { text: "โดนแกล้ง... เครียดนิดหน่อย (ความสุข -30) 💔", effect: () => { stats.happy = Math.max(0, stats.happy - 30); playSound('wrong'); } },
+            { text: "สะดุดล้ม! (พลังงาน -50) 💤", effect: () => { stats.energy = Math.max(0, stats.energy - 50); playSound('wrong'); } },
+            { text: "ถูกตีหัวสลบ! (บังคับนอน) 😵", effect: () => { isSleeping = true; petElement.style.animation = 'bounce 4s infinite'; playSound('wrong'); } },
+            { text: "โดนขโมยความรู้! (EXP -15) 📉", effect: () => { stats.exp = Math.max(0, stats.exp - 15); playSound('wrong'); } }
+        ];
+
+        let selectedStages = [];
+        let gameInterval = null;
+        let timerInterval = null;
+        let currentQuestion = null;
+        let generatedBoxes = []; 
+        let currentPetIndex = 0; 
+
+        const MAX_LEVEL = 20;
+        let stats = { hunger: 100, happy: 100, energy: 100, level: 1, exp: 0, poopTimer: 0, playSeconds: 0 };
+        let isAlive = true;
+        let isSleeping = false;
+        let isGameWon = false; 
+        let needsPoop = false; 
+        let isPooping = false; 
+
+        const petElement = document.getElementById('pet-container');
+        const statusText = document.getElementById('status-text');
+        const warningBox = document.getElementById('warning-box');
+        const levelText = document.getElementById('level-text');
+        const timeText = document.getElementById('time-text');
+        const petTitle = document.getElementById('pet-title');
+
+        // --- ฟังก์ชันป้องกันแอปแครชจากเซฟเก่า ---
+        function safeRestart() {
+            // 1. ถามยืนยันก่อน
+            const confirmDelete = confirm("คุณแน่ใจใช่ไหมที่จะเริ่มใหม่?\nข้อมูลการเล่นทั้งหมดจะถูกลบและกู้คืนไม่ได้!");
+            
+            if (confirmDelete) {
+                try {
+                    // 2. ลบข้อมูลเซฟ
+                    localStorage.removeItem(SAVE_KEY);
+                    
+                    // 3. รีเซ็ตสถานะในตัวเกมให้เป็นค่าเริ่มต้น
+                    isAlive = true;
+                    isGameWon = false;
+                    stats = { hunger: 100, happy: 100, energy: 100, level: 1, exp: 0, poopTimer: 0, playSeconds: 0 };
+                    
+                    // 4. ซ่อนหน้าจอเกมและโชว์หน้าเลือกสัตว์แทน (ไม่ต้องรีโหลดหน้าเว็บ)
+                    document.getElementById('game-boy').style.display = 'none';
+                    document.getElementById('selection-screen').style.display = 'block';
+                    document.getElementById('controls').style.display = 'grid'; // คืนค่าปุ่มกด
+                    document.getElementById('btn-restart').style.display = 'none';
+                    
+                    // 5. หยุดการทำงานของ Loop เดิม
+                    clearInterval(gameInterval);
+                    clearInterval(timerInterval);
+                    
+                    // 6. ล้างหน้าจอสัตว์เลี้ยง
+                    petElement.style.animation = 'bounce 2s infinite';
+                    statusText.innerText = "พร้อมเรียนรู้!";
+                    statusText.style.color = "white";
+                    
+                } catch(e) {
+                    location.reload();
+                }
+            }
+        }
+
+        // --- ระบบบันทึกเกมและโหลดเกม ---
+        function saveGame() {
+            try {
+                const gameData = {
+                    stats: stats,
+                    isAlive: isAlive,
+                    isSleeping: isSleeping,
+                    isGameWon: isGameWon,
+                    currentPetIndex: currentPetIndex,
+                    needsPoop: needsPoop
+                };
+                localStorage.setItem(SAVE_KEY, JSON.stringify(gameData));
+            } catch(e) { console.log("Save error"); }
+        }
+
+        function loadGame() {
+            try {
+                const savedData = localStorage.getItem(SAVE_KEY);
+                if (savedData) {
+                    const gameData = JSON.parse(savedData);
+                    
+                    stats = gameData.stats || {};
+                    if(isNaN(stats.hunger)) stats.hunger = 100;
+                    if(isNaN(stats.happy)) stats.happy = 100;
+                    if(isNaN(stats.energy)) stats.energy = 100;
+                    if(isNaN(stats.level)) stats.level = 1;
+                    if(isNaN(stats.exp)) stats.exp = 0;
+                    if(isNaN(stats.poopTimer)) stats.poopTimer = 0; 
+                    if(isNaN(stats.playSeconds)) stats.playSeconds = 0; 
+                    
+                    isAlive = gameData.isAlive !== false; 
+                    isSleeping = gameData.isSleeping === true;
+                    isGameWon = gameData.isGameWon === true;
+                    needsPoop = gameData.needsPoop === true;
+                    
+                    currentPetIndex = gameData.currentPetIndex || 0;
+                    if(!petDatabase[currentPetIndex]) currentPetIndex = 0;
+                    
+                    selectedStages = petDatabase[currentPetIndex].stages;
+                    petTitle.innerText = petDatabase[currentPetIndex].name;
+                    
+                    document.getElementById('selection-screen').style.display = 'none';
+                    document.getElementById('game-boy').style.display = 'block';
+                    
+                    if (isGameWon) {
+                        triggerEnding(true);
+                    } else if (!isAlive) {
+                        updateUI();
+                    } else {
+                        if (isSleeping) petElement.style.animation = 'bounce 4s infinite';
+                        updateUI();
+                        gameInterval = setInterval(gameLoop, 2000);
+                        startPlayTimer();
+                    }
+                    return true; 
+                }
+            } catch(e) {
+                console.log("Load error, starting fresh");
+                safeRestart();
+            }
+            return false; 
+        }
+
+        // --- ระบบนับเวลาเล่น ---
+        function startPlayTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (isAlive && !isGameWon) {
+                    stats.playSeconds++;
+                    updateTimeDisplay();
+                    saveGame();
+                }
+            }, 1000);
+        }
+
+        function updateTimeDisplay() {
+            const m = Math.floor(stats.playSeconds / 60);
+            const s = stats.playSeconds % 60;
+            timeText.innerText = `⏱️ เวลาเล่น: ${m} นาที ${s} วินาที`;
+        }
+
+        function getMaxExpForLevel(level) {
+            return 100 + ((level - 1) * 20);
+        }
+
+        function renderSelection() {
+            const grid = document.getElementById('pet-grid');
+            petDatabase.forEach((pet, index) => {
+                const finalForm = pet.stages[4].emoji; 
+                const card = document.createElement('div');
+                card.className = 'pet-card';
+                card.onclick = () => { initAudio(); playSound('click'); startGame(index); };
+                card.innerHTML = `<div class="pet-card-emoji">${finalForm}</div><div class="pet-card-name">${pet.name}</div>`;
+                grid.appendChild(card);
+            });
+        }
+
+        function startGame(petIndex) {
+            currentPetIndex = petIndex;
+            selectedStages = petDatabase[petIndex].stages;
+            petTitle.innerText = petDatabase[petIndex].name;
+            document.getElementById('selection-screen').style.display = 'none';
+            document.getElementById('game-boy').style.display = 'block';
+            
+            saveGame(); 
+            updateUI();
+            updateTimeDisplay();
+            gameInterval = setInterval(gameLoop, 2000); 
+            startPlayTimer();
+        }
+
+        function getStage() {
+            if(!selectedStages || selectedStages.length === 0) return { emoji: '🥚', name: 'ไข่' };
+            let current = selectedStages[0];
+            for(let i=0; i < selectedStages.length; i++) {
+                if(stats.level >= selectedStages[i].reqLevel) current = selectedStages[i];
+            } return current;
+        }
+
+        function checkLevelUp() {
+            let currentMaxExp = getMaxExpForLevel(stats.level);
+            
+            if(stats.exp >= currentMaxExp && stats.level < MAX_LEVEL) {
+                stats.exp -= currentMaxExp; 
+                stats.level++; 
+                
+                if (stats.level >= MAX_LEVEL) { 
+                    triggerEnding(false); 
+                } else {
+                    playSound('levelup');
+                    statusText.innerText = `เลเวลอัป! เป็นเลเวล ${stats.level}`;
+                    statusText.style.color = "#4cb0a9";
+                    setTimeout(() => { statusText.style.color = "#4a5568"; }, 2000);
+                    checkLevelUp(); 
+                }
+            }
+        }
+
+        function triggerEnding(isLoad) {
+            isGameWon = true; 
+            clearInterval(gameInterval); 
+            clearInterval(timerInterval);
+            if (!isLoad) playSound('victory');
+            
+            const finalStage = getStage(); 
+            petElement.innerText = finalStage.emoji;
+            petElement.style.animation = "ascend-glow 2s infinite alternate";
+
+            statusText.innerHTML = `🎉 ยินดีด้วย! จุติเป็น ${finalStage.name}! 🌟`;
+            statusText.style.color = "#f1c40f";
+            levelText.innerText = `Level: MAX (ร่างจุติ)`;
+            updateTimeDisplay();
+            warningBox.style.display = 'none';
+            
+            document.getElementById('controls').style.display = 'none';
+            const btnRestart = document.getElementById('btn-restart');
+            btnRestart.style.display = 'block';
+            btnRestart.innerHTML = '✨ เลี้ยงตัวใหม่ ✨';
+
+            document.getElementById('exp-bar').style.width = '100%';
+            document.getElementById('exp-bar').style.backgroundColor = '#2ecc71'; 
+            saveGame();
+        }
+
+        function updateWarnings() {
+            if (!isAlive || isGameWon || isSleeping) { warningBox.style.display = 'none'; return; }
+            let warnings = [];
+            if (needsPoop) warnings.push("ปวดอึแล้ว! 💩");
+            if (stats.hunger < 30) warnings.push("หิวข้าวแล้ว! 🍖");
+            if (stats.happy < 30) warnings.push("เครียดจังเลย! 🎾");
+            if (stats.energy < 20) warnings.push("ง่วงนอนจัง... 💤");
+
+            if (warnings.length > 0) {
+                warningBox.innerHTML = warnings.join("<br>");
+                warningBox.style.display = 'block';
+            } else { warningBox.style.display = 'none'; }
+        }
+
+        function updateUI() {
+            try {
+                if (!isAlive || isGameWon) return; 
+                
+                let currentMaxExp = getMaxExpForLevel(stats.level);
+                let expPercent = (stats.exp / currentMaxExp) * 100;
+                
+                document.getElementById('hunger-bar').style.width = stats.hunger + '%';
+                document.getElementById('happy-bar').style.width = stats.happy + '%';
+                document.getElementById('energy-bar').style.width = stats.energy + '%';
+                document.getElementById('exp-bar').style.width = expPercent + '%';
+
+                document.getElementById('happy-bar').style.backgroundColor = stats.happy < 30 ? '#ff6b6b' : '#feca57';
+                document.getElementById('hunger-bar').style.backgroundColor = stats.hunger < 30 ? '#c0392b' : '#ff6b6b';
+                document.getElementById('energy-bar').style.backgroundColor = stats.energy < 20 ? '#996df0' : '#48dbfb';
+
+                const currentStage = getStage();
+                if(!isPooping) {
+                    petElement.innerText = isSleeping ? '😴' : currentStage.emoji;
+                }
+                
+                levelText.innerText = `Level: ${stats.level} | EXP: ${Math.floor(stats.exp)}/${currentMaxExp} (ร่าง: ${currentStage.name})`;
+                updateWarnings(); 
+                
+                const btns = ['btn-quiz', 'btn-feed', 'btn-play', 'btn-sleep', 'btn-poop'];
+                if (isPooping) {
+                    btns.forEach(id => document.getElementById(id).disabled = true);
+                } else {
+                    btns.forEach(id => document.getElementById(id).disabled = false);
+                }
+
+                if (stats.hunger <= 0) {
+                    isAlive = false; petElement.innerText = '👻'; petElement.style.animation = 'none';
+                    statusText.innerText = 'ลาก่อน... หิวตายแล้ว 😭'; statusText.style.color = "#ff6b6b";
+                    warningBox.style.display = 'none'; playSound('wrong'); 
+                    clearInterval(gameInterval); clearInterval(timerInterval);
+                    
+                    document.getElementById('controls').style.display = 'none';
+                    const btnRestart = document.getElementById('btn-restart');
+                    btnRestart.style.display = 'block';
+                    btnRestart.innerHTML = '🔄 เริ่มเกมใหม่';
+                }
+                saveGame(); 
+            } catch(e) { console.log("UI Update Error"); }
+        }
+
+        // --- ระบบควิซและกล่อง ---
+        function openQuiz() {
+            try { initAudio(); playSound('click'); } catch(e){}
+            if (!isAlive || isSleeping || isGameWon || isPooping) return;
+            
+            if (needsPoop) { statusText.innerText = 'ปวดอึ! พาไปขับถ่ายก่อนนะ 💩'; updateWarnings(); return; }
+            if (stats.happy < 30) { statusText.innerText = 'เครียดเกินไป! พาไปเล่นก่อนนะ'; return; }
+            if (stats.energy < 20) { statusText.innerText = 'พลังงานไม่พอ! ให้นอนก่อนนะ'; return; }
+            
+            document.getElementById('quiz-content').style.display = 'block';
+            document.getElementById('box-content').style.display = 'none';
+
+            const randomIndex = Math.floor(Math.random() * questions.length);
+            currentQuestion = questions[randomIndex];
+            document.getElementById('quiz-question').innerText = currentQuestion.q;
+            
+            const choicesDiv = document.getElementById('quiz-choices');
+            choicesDiv.innerHTML = '';
+            currentQuestion.choices.forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'quiz-choice'; btn.innerText = choice;
+                btn.onclick = () => answerQuiz(index);
+                choicesDiv.appendChild(btn);
+            });
+            document.getElementById('quiz-modal').style.display = 'flex';
+        }
+
+        function closeQuiz() { document.getElementById('quiz-modal').style.display = 'none'; }
+
+        function answerQuiz(selectedIndex) {
+            stats.energy = Math.max(0, stats.energy - 15); 
+            stats.happy = Math.max(0, stats.happy - 10); 
+            stats.hunger = Math.max(0, stats.hunger - 5); 
+            
+            const isCorrect = (selectedIndex === currentQuestion.answer);
+            if (isCorrect) playSound('correct');
+            else playSound('wrong');
+
+            showBoxes(isCorrect);
+        }
+
+        function showBoxes(isCorrect) {
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('box-content').style.display = 'block';
+            
+            const boxMessage = document.getElementById('box-message');
+            const boxContainer = document.getElementById('box-container');
+            boxContainer.innerHTML = ''; 
+            generatedBoxes = [];
+
+            let sourceList = isCorrect ? [...rewards] : [...punishments];
+            boxMessage.innerText = isCorrect ? "ถูกต้อง! 🎉 เลือกกล่องรับรางวัล" : "ตอบผิด! 😱 เลือกกล่องรับบทลงโทษ";
+            boxMessage.style.color = isCorrect ? "#4cb0a9" : "#ff6b6b";
+
+            for(let i=0; i<3; i++) {
+                let randIdx = Math.floor(Math.random() * sourceList.length);
+                generatedBoxes.push(sourceList[randIdx]);
+                sourceList.splice(randIdx, 1); 
+                
+                const boxBtn = document.createElement('div');
+                boxBtn.className = isCorrect ? 'mystery-box' : 'mystery-box bad';
+                boxBtn.innerText = '🎁';
+                boxBtn.onclick = () => { playSound('click'); openBox(i); };
+                boxContainer.appendChild(boxBtn);
+            }
+        }
+
+        function openBox(boxIndex) {
+            const selectedItem = generatedBoxes[boxIndex];
+            selectedItem.effect(); 
+            statusText.innerText = selectedItem.text;
+            checkLevelUp();
+            updateUI();
+            closeQuiz();
+        }
+
+        // --- ปุ่มแอคชั่นต่างๆ ---
+        function poop() {
+            try { initAudio(); playSound('click'); } catch(e){}
+            if (!isAlive || isGameWon || isSleeping || isPooping) return;
+            
+            if (!needsPoop) {
+                statusText.innerText = 'ยังไม่ปวดอึเลย...';
+                return;
+            }
+            
+            isPooping = true;
+            statusText.innerText = 'กำลังเบ่งอึ... 💩💦';
+            petElement.style.animation = 'pooping-shake 0.5s infinite'; 
+            updateUI(); 
+
+            let poopDuration = Math.floor(Math.random() * 5000) + 3000;
+
+            setTimeout(() => {
+                if(!isAlive) return;
+                isPooping = false;
+                needsPoop = false;
+                stats.poopTimer = 0; 
+                
+                stats.happy = Math.min(100, stats.happy + 15); 
+                stats.hunger = Math.max(0, stats.hunger - 5); 
+                
+                statusText.innerText = 'โล่งท้องแล้ว! ✨';
+                playSound('correct');
+                petElement.style.animation = 'bounce 2s infinite'; 
+                updateUI();
+            }, poopDuration);
+        }
+
+        function feed() {
+            try { initAudio(); playSound('click'); } catch(e){}
+            if (!isAlive || isSleeping || isGameWon || isPooping) return;
+            stats.hunger = Math.min(100, stats.hunger + 30);
+            
+            stats.poopTimer += 15;
+            if (stats.poopTimer >= 100 && !needsPoop) needsPoop = true;
+
+            statusText.innerText = 'หงับๆ อร่อยจัง!'; updateUI();
+        }
+
+        function play() {
+            try { initAudio(); playSound('click'); } catch(e){}
+            if (!isAlive || isSleeping || isGameWon || isPooping) return;
+            if (stats.energy < 15) { statusText.innerText = 'เหนื่อยเกินไป ขอพักหน่อย...'; return; }
+            stats.happy = Math.min(100, stats.happy + 30);
+            stats.energy = Math.max(0, stats.energy - 10);
+            stats.hunger = Math.max(0, stats.hunger - 10);
+            statusText.innerText = 'เย้! สนุกจังเลย'; updateUI();
+        }
+
+        function sleep() {
+            try { initAudio(); playSound('click'); } catch(e){}
+            if (!isAlive || isGameWon || isPooping) return;
+            
+            isSleeping = !isSleeping;
+            if (!isSleeping) {
+                statusText.innerText = 'ตื่นแล้ว!';
+            } else {
+                statusText.innerText = 'กำลังนอนหลับ...';
+            }
+            
+            petElement.style.animation = isSleeping ? 'bounce 4s infinite' : 'bounce 2s infinite';
+            updateUI();
+        }
+
+        function gameLoop() {
+            try {
+                if (!isAlive || isGameWon) return;
+                
+                if (isSleeping) {
+                    stats.energy = Math.min(100, stats.energy + 10);
+                    stats.hunger = Math.max(0, stats.hunger - 1);
+                    
+                    if (stats.energy >= 100) {
+                        isSleeping = false;
+                        statusText.innerText = 'ตื่นแล้ว! พลังงานเต็มเปี่ยม ✨';
+                        petElement.style.animation = 'bounce 2s infinite';
+                        updateWarnings();
+                    }
+                } else {
+                    stats.hunger = Math.max(0, stats.hunger - 1.5);
+                    stats.happy = Math.max(0, stats.happy - 1); 
+                    
+                    if (!needsPoop) {
+                        stats.poopTimer += 2;
+                        if (stats.poopTimer >= 100) needsPoop = true;
+                    }
+                }
+                updateUI();
+            } catch (e) { console.log("Game loop error"); }
+        }
+
+        window.onload = () => {
+            if (!loadGame()) {
+                renderSelection();
+            }
+        };
+    </script>
+</body>
+</html>
